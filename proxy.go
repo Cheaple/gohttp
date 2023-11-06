@@ -45,8 +45,11 @@ func HttpClientHandler(client net.Conn) {
 }
 
 func main() {
-	// Create a proxy server listening on :8080
-	ln, err := net.Listen("tcp", ":8080")
+	// Create a proxy server listening on, listen on the port specified from the command line
+	port := flag.Int("port", 8080, "Port to listen on")
+	flag.Parse()
+	address := fmt.Sprintf(":%d", *port)
+	ln, err := net.Listen("tcp", address)
 	if err != nil {
 		fmt.Println("Error starting proxy server:", err)
 		return
