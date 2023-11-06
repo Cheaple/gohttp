@@ -2,15 +2,17 @@ package main
 
 import (
 	"fmt"
+	"flag"
 	"bufio"
 	"io"
 	"net"
 	"net/http"
+	// "os"
+	// "strconv"
 )
 
 func HttpClientHandler(client net.Conn) {
 	defer client.Close()
-
 
 	// Parse the request
 	request, err := http.ReadRequest(
@@ -23,6 +25,7 @@ func HttpClientHandler(client net.Conn) {
 	// Check the request method
 	if request.Method != "GET" {
 		// Return a "501 Not Implemented" response for non-GET requests
+		fmt.Println("Error Not Implemented: method", request.Method)
 		client.Write([]byte("HTTP/1.1 501 Not Implemented\r\n"))
 		client.Write([]byte("Content-Length: 0\r\n\r\n"))
 		return
@@ -45,9 +48,12 @@ func HttpClientHandler(client net.Conn) {
 }
 
 func main() {
-	// Create a proxy server listening on, listen on the port specified from the command line
-	port := flag.Int("port", 8080, "Port to listen on")
+	var (
+		port = flag.Int("port", 8080, "Port to listen on")
+	)
 	flag.Parse()
+
+	// Create a proxy server listening on, listen on the port specified from the command line
 	address := fmt.Sprintf(":%d", *port)
 	ln, err := net.Listen("tcp", address)
 	if err != nil {
@@ -56,7 +62,7 @@ func main() {
 	}
 	defer ln.Close()
 
-	fmt.Println("Proxy server is listening on :8080")
+	fmt.Printf("Proxy server is listening on %d\n", *port)
 
 	// Accept and handle incoming client connections
 	for {
