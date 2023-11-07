@@ -33,20 +33,34 @@ func HttpClientHandler(client net.Conn) {
 
 	// Forward the GET request to the remote server
 	serverURL := request.URL
-	response, err := http.Get(serverURL.String())
+	targetConn, err := net.Dial("tcp", serverURL.Host)
 	if err != nil {
-		fmt.Println("Error forwarding request to remote server:", err)
+		fmt.Println("Error connecting to target server:", err)
 		return
 	}
-	defer response.Body.Close()
+	defer targetConn.Close()
+	forwardData(client, targetConn)
 
 	// Copy the remote server's response back to the client
 	client.Write([]byte("HTTP/1.1 200 OK\r\n"))
 	client.Write([]byte("Content-Length: "))
-	client.Write([]byte(fmt.Sprintf("%d\r\n\r\n", response.ContentLength)))
-	io.Copy(client, response.Body)
+	io.Copy(client, targetConn)
 }
 
+func forwardData(src, dest net.Conn) {
+	buffer := make([]byte, 4096)
+	for {
+		n, err := src.Read(buffer)
+		if err != nil {
+			fmt.Println("Error forwarding request to remote server:", err)
+			return
+		}
+		_, err = dest.Write(buffer[:n])
+		if err != nil {
+			return
+		}
+	}
+}
 func main() {
 	var (
 		port = flag.Int("port", 8080, "Port to listen on")
