@@ -81,13 +81,13 @@ func notImplement(conn net.Conn) {
 }
 
 func main() {
-	var (
-		port = flag.Int("port", 8080, "Port to listen on")
-	)
+	var port int
+	flag.IntVar(&port, "port", 8080, "Port to listen on")
+	flag.IntVar(&port, "p", 8080, "Port to listen on")
 	flag.Parse()
 
 	// Create a proxy server listening on, listen on the port specified from the command line
-	address := fmt.Sprintf(":%d", *port)
+	address := fmt.Sprintf(":%d", port)
 	ln, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Println("Error starting proxy server:", err)
@@ -95,7 +95,7 @@ func main() {
 	}
 	defer ln.Close()
 
-	log.Printf("Proxy server is listening on %d\n", *port)
+	log.Printf("Proxy server is listening on %d\n", port)
 
 	// Accept and handle incoming client connections
 	for {
