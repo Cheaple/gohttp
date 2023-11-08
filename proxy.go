@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"flag"
 	"bufio"
+	"io"
 	"net"
 	"net/http"
 	"log"
@@ -21,40 +22,44 @@ func HttpClientHandler(clientConn net.Conn) {
 	}
 
 	// Check the request method
-	if request.Method != "GET" {
+	if request.Method == "GET" {
+		// Forward the GET request to the remote server
+		serverURL := request.URL
+		targetConn, err := net.Dial("tcp", serverURL.Host)
+		if err != nil {
+			log.Println("Error connecting to target server:", err)
+			return
+		}
+		defer targetConn.Close()
+		log.Println("Forwarding a HTTP GET request to target server: ", serverURL.Host)
+		forwardGetReq(clientConn, targetConn)
+
+		// Copy the remote server's response back to the client
+		log.Println("Forwarding a HTTP GET response from target server: ", serverURL.Host)
+		forwardGetRsp(targetConn, clientConn)
+	} else {
 		// Return a "501 Not Implemented" response for non-GET requests
 		log.Println("Error Not Implemented: method", request.Method)
 		notImplement(clientConn)
 		return
 	}
-
-	// Forward the GET request to the remote server
-	serverURL := request.URL
-	targetConn, err := net.Dial("tcp", serverURL.Host)
-	if err != nil {
-		log.Println("Error connecting to target server:", err)
-		return
-	}
-	defer targetConn.Close()
-	log.Println("Forwarding a request to target server: ", serverURL)
-	forwardData(clientConn, targetConn)
-
-	// Copy the remote server's response back to the client
-	log.Println("Forwarding a response from target server: ", serverURL)
-	forwardData(targetConn, clientConn)
 }
 
-func forwardData(src, dest net.Conn) {
+func forwardGetReq(src, dest net.Conn) {
+	io.Copy(src, dest)
+}
+
+func forwardGetRsp(src, dest net.Conn) {
 	buffer := make([]byte, 4096)
 	for {
 		n, err := src.Read(buffer)
 		if err != nil {
-			log.Println("Error reading from source:", err)
+			log.Println("Error reading from target server:", err)
 			return
 		}
 		_, err = dest.Write(buffer[:n])
 		if err != nil {
-			log.Println("Error forwarding to target:", err)
+			log.Println("Error forwarding to source client:", err)
 			return
 		}
 	}
