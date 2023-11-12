@@ -43,6 +43,9 @@ func main() {
 	}
 }
 
+//
+// Handler for incoming request from HTTP client
+//
 func httpClientHandler(clientConn net.Conn) {
 	defer clientConn.Close()
 	requestSem <- struct{}{}  // wait for other coroutines
@@ -87,6 +90,9 @@ func httpClientHandler(clientConn net.Conn) {
 	// <-requestSem
 }
 
+//
+// Forward GET response from server to client
+//
 func forwardGetRsp(r *http.Response, conn net.Conn) {
 	defer r.Body.Close()
 
@@ -106,6 +112,9 @@ func forwardGetRsp(r *http.Response, conn net.Conn) {
 	}
 }
 
+//
+// Send 501 Method Not Implemented to client
+//
 func returnNotImplement(conn net.Conn) {
 	var buf string
 	buf = "HTTP/1.1 501 Method Not Implemented\r\n"
