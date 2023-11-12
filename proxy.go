@@ -8,7 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"time"
+	// "time"
 )
 
 var maxRequests = 10  // max number of concurrent HTTP requests
@@ -38,7 +38,7 @@ func main() {
 			log.Println("Error accepting client connection:", err)
 			continue
 		}
-		log.Println("Receiving a new request ...")
+		log.Println("Receiving a new request from", client.RemoteAddr().String())
 		go httpClientHandler(client)
 	}
 }
@@ -47,7 +47,7 @@ func httpClientHandler(clientConn net.Conn) {
 	defer clientConn.Close()
 	requestSem <- struct{}{}  // wait for other coroutines
 	defer func() { <-requestSem }()
-	log.Println("Handling a new request")
+	log.Println("Handling a new request from ", clientConn.RemoteAddr().String())
 
 	// Parse the request
 	request, err := http.ReadRequest(
@@ -71,7 +71,7 @@ func httpClientHandler(clientConn net.Conn) {
 		defer response.Body.Close()
 
 		// Copy the remote server's response back to the client
-		log.Println("Forwarding a HTTP GET response from target server: ", serverURL.Host)
+		log.Println("Forwarding a HTTP GET response from target server:", serverURL.Host)
 		forwardGetRsp(response , clientConn)
 
 	} else {
@@ -80,7 +80,11 @@ func httpClientHandler(clientConn net.Conn) {
 		returnNotImplement(clientConn)
 		return
 	}
-	time.Sleep(5 * time.Second)  // to test max concurrency
+
+	// to test max concurrency
+	// clientConn.Close()
+	// time.Sleep(10 * time.Second)
+	// <-requestSem
 }
 
 func forwardGetRsp(r *http.Response, conn net.Conn) {
