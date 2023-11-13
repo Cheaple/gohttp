@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -17,8 +18,8 @@ import (
 var (
 	debug			bool = false
 	port			int = 8080
-	mediaType		= [...]string{"text/html", "text/plain", "image/gif", "image/jpeg", "image/jpeg", "text/css"}
-	fileType		= [...]string{"html", "txt", "gif", "jpeg", "jpg", "css"}
+	mediaTypeList	= [...]string{"text/html", "text/plain", "image/gif", "image/jpeg", "image/jpeg", "text/css"}
+	fileTypeList	= [...]string{"html", "txt", "gif", "jpeg", "jpg", "css"}
 	workspace string
 	maxWorkers		= 10
 	workerSem		= make(chan struct{}, maxWorkers)
@@ -57,7 +58,6 @@ func main() {
 	}
 }
 
-
 //
 // Handler for incoming request from HTTP connection
 //
@@ -69,27 +69,71 @@ func handleRequest(conn net.Conn) {
 
 	request, err := utils.ParseRequest(conn)
 	if err != nil {
-		fmt.Println("Error parsing connection:", err)
+		log.Println("Error parsing connection:", err)
 		return
 	}
-
 	responseWriter := utils.NewConnResponseWriter(conn)
 
 	// Check the request method
-	if request.Method == "GET" {
+	if request.Method == http.MethodGet {
 		log.Println("Handing a GET request")
 		handleGET(responseWriter, request)
-	} else if request.Method == "POST" {
+	} else if request.Method == http.MethodPost {
 		log.Println("Handing a POST request")
 		handlePOST(responseWriter, request)
 	} else {
-		responseWriter.WriteHeader(http.StatusMethodNotAllowed)
+		log.Printf("Handing a %s request, not implemented!", request.Method)
+		responseWriter.WriteHeader(http.StatusNotImplemented)
+		responseWriter.WriteText("Method Not Implemented")
 	}
 }
 
 // Handle GET request
 func handleGET(w *utils.ConnResponseWriter, r *http.Request) {
-	
+	filename := path.Base(r.URL.String())
+	filename_list := strings.Split(filename, ".")
+	if len(filename_list) <= 1 {
+		w.WriteHeader(http.StatusBadRequest)
+		w.WriteText("No specified file type")
+		return
+	}
+	valid, contentType := isValidType(filename_list[len(filename_list)-1])
+	if !valid {
+		log.Println("Error opening file: invalid file type")
+		w.WriteHeader(http.StatusBadRequest)
+		w.WriteText("Invalid file type")
+		return
+	}
+
+	// Open file
+	targetPath := workspace + "/" + filename
+	file, err := os.Open(targetPath)
+	if err != nil {
+		log.Println("Error opening file:", err)
+		w.WriteHeader(http.StatusFound)
+		w.WriteText("File not found")
+		return
+	}
+	defer file.Close()
+
+	// Get file info
+	fileInfo, err := file.Stat()
+	if err != nil {
+		log.Println("Error fetching file info:", err)
+		return
+	}
+	buffer := make([]byte, fileInfo.Size())
+	_, err = file.Read(buffer)
+
+	// Set Headers
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileInfo.Name()))
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
+
+	// Send response
+	w.WriteHeader(http.StatusOK)
+	w.Write(buffer)
+	log.Println("Success sending file:", targetPath)
 }
 
 // Handle POST request
@@ -122,7 +166,6 @@ func handlePOST(w *utils.ConnResponseWriter, r *http.Request) {
 			return
 		}
 		defer file.Close()
-		log.Println("File Uploaded: %+v", h.Header)
 
 		// Create a target file locally 
 		dst, err := os.Create(workspace + "/" + h.Filename)
@@ -140,17 +183,19 @@ func handlePOST(w *utils.ConnResponseWriter, r *http.Request) {
 			w.WriteText("Error copying file")
 			return
 		}
-		log.Printf("Received %s file content type: %s", h.Header.Get("Content-Type"), h.Filename)
+		log.Println("File Uploaded: %+v", h.Header)
+		// log.Printf("Received %s file content type: %s", h.Header.Get("Content-Type"), h.Filename)
 	}
-	
 	w.WriteHeader(http.StatusOK)
 	w.WriteText("Files uploaded successfully")
 }
 
-func typeMatch(typeList [6]string, target string) (bool, string) {
-	for i, str := range typeList {
+
+// Check whether the target file type is valid
+func isValidType(target string) (bool, string) {
+	for i, str := range fileTypeList {
 		if str == target {
-			return true, mediaType[i]
+			return true, mediaTypeList[i]
 		}
 	}
 	return false, ""

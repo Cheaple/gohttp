@@ -14,4 +14,4 @@ RUN go build -o proxy ./proxy.go
 EXPOSE 8888
 
 # Command to run the Go application
-CMD ["./server", "-p=8888"]
+CMD ["./[proxy]", "-p=8888"]

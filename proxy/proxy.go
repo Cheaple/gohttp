@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"mymodule/utils"
 	// "time"
 )
 
@@ -53,17 +54,17 @@ func httpClientHandler(clientConn net.Conn) {
 	log.Println("Handling a new connection from ", clientConn.RemoteAddr().String())
 
 	// Parse the request
-	request, err := http.ReadRequest(
-		bufio.NewReader(clientConn)
-	)
+	request, err := http.ReadRequest(bufio.NewReader(clientConn))
 	if err != nil {
 		log.Println("Error parsing request:", err)
 		return
 	}
 
+	responseWriter := utils.NewConnResponseWriter(clientConn)
+
 	// TODO: check validity of the request
 	// Check the request method
-	if request.Method == "GET" {
+	if request.Method == http.MethodGet {
 		// Forward the GET request to the remote server
 		serverURL := request.URL
 		log.Println("Forwarding a HTTP GET request to target server: ", serverURL.Host)
@@ -76,12 +77,13 @@ func httpClientHandler(clientConn net.Conn) {
 
 		// Copy the remote server's response back to the client
 		log.Println("Forwarding a HTTP GET response from target server:", serverURL.Host)
-		forwardGetRsp(response , clientConn)
+		forwardGetRsp(responseWriter, response)
 
 	} else {
 		// Return a "501 Not Implemented" response for non-GET requests
-		log.Println("Error forwarding: not implemented method", request.Method)
-		returnNotImplement(clientConn)
+		log.Printf("Handing a %s request, not implemented!", request.Method)
+		responseWriter.WriteHeader(http.StatusNotImplemented)
+		responseWriter.WriteText("Method Not Implemented")
 		return
 	}
 
@@ -94,44 +96,20 @@ func httpClientHandler(clientConn net.Conn) {
 //
 // Forward GET response from server to client
 //
-func forwardGetRsp(r *http.Response, conn net.Conn) {
+func forwardGetRsp(w *utils.ConnResponseWriter, r *http.Response) {
 	defer r.Body.Close()
 
-	// Set the status code and headers for the new response
-	_, _ = conn.Write([]byte(fmt.Sprintf("HTTP/1.1 %d %s\r\n", r.StatusCode, http.StatusText(r.StatusCode))))
+	// Set headers for the new response
 	for key, values := range r.Header {
 		for _, value := range values {
-			_, _ = conn.Write([]byte(fmt.Sprintf("%s: %s\r\n", key, value)))
+			w.Header().Set(key, value)
 		}
 	}
-	_, _ = conn.Write([]byte("\r\n"))
 
 	// Copy the response body to the connection's output stream
-	_, err := io.Copy(conn, r.Body)
+	w.WriteHeader(r.StatusCode)
+	_, err := io.Copy(w, r.Body)
 	if err != nil {
 		fmt.Println("Error copying response body to connection:", err)
 	}
-}
-
-//
-// Send 501 Method Not Implemented to client
-//
-func returnNotImplement(conn net.Conn) {
-	var buf string
-	buf = "HTTP/1.1 501 Method Not Implemented\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "Content-Type: text/html; charset=utf-8\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "Connection: close\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "<HTML><HEAD><TITLE>\r\nMethod Not Implemented\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "</TITLE></HEAD>\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "<BODY><P>\r\nHTTP request method not supported.\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "</BODY></HTML>\r\n"
-	_, _ = conn.Write([]byte(buf))
 }

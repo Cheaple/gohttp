@@ -25,16 +25,14 @@ func NewConnResponseWriter(conn net.Conn) *ConnResponseWriter {
 	return &ConnResponseWriter{
 		conn:   conn,
 		header: make(http.Header),
-		status: http.StatusOK,
+		status: 0,
 	}
 }
-
 
 // Header returns the header map.
 func (w *ConnResponseWriter) Header() http.Header {
 	return w.header
 }
-
 
 // Write writes the data to the connection.
 func (w *ConnResponseWriter) Write(data []byte) (int, error) {
@@ -48,7 +46,7 @@ func (w *ConnResponseWriter) WriteText(data string) (int, error) {
 	if w.status == 0 {
 		w.WriteHeader(http.StatusOK)
 	}
-	return w.conn.Write([]byte(data))
+	return w.conn.Write([]byte(data + " \r\n"))
 }
 
 // WriteHeader writes the status code to the connection.
@@ -59,6 +57,7 @@ func (w *ConnResponseWriter) WriteHeader(statusCode int) {
 		fmt.Fprintf(w.conn, "HTTP/1.1 %d %s\r\n", statusCode, statusText)
 		w.header.Write(w.conn)
 		fmt.Fprintf(w.conn, "\r\n")
+		log.Printf("HTTP/1.1 %d %s\r\n", statusCode, statusText)
 	}
 }
 
@@ -66,13 +65,13 @@ func (w *ConnResponseWriter) WriteHeader(statusCode int) {
 // parse HTTP connection into a http.Request object
 func ParseRequest(conn net.Conn) (*http.Request, error) {
 	reader := bufio.NewReader(conn)
-	log.Println("00")
+
 	// Read the request line
 	requestLine, err := reader.ReadString('\n')
 	if err != nil {
 		return nil, err
 	}
-	log.Println("111")
+
 	parts := strings.Fields(requestLine)
 	if len(parts) != 3 {
 		return nil, fmt.Errorf("invalid request line: %s", requestLine)
@@ -81,7 +80,7 @@ func ParseRequest(conn net.Conn) (*http.Request, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error parsing URL: %v", err)
 	}
-	log.Println("222")
+
 	req := &http.Request{
 		Method: parts[0],
 		URL: reqURL,
@@ -89,7 +88,6 @@ func ParseRequest(conn net.Conn) (*http.Request, error) {
 		ProtoMajor: 1,
 		ProtoMinor: 1,
 	}
-	log.Println("333")
 
 	// Read request header
 	req.Header = make(http.Header)
@@ -120,6 +118,5 @@ func ParseRequest(conn net.Conn) (*http.Request, error) {
 		}
 		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
-	log.Println("999")
 	return req, nil
 }
