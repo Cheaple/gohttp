@@ -37,7 +37,7 @@ func main() {
 	flag.IntVar(&port, "p", 8080, "Port to listen on")
 	flag.Parse()
 	
-	// Create a proxy server listening on, listen on the port specified from the command line
+	// Create a server listening on, listen on the port specified from the command line
 	address := fmt.Sprintf(":%d", port)
 	ln, err := net.Listen("tcp", address)
 	if err != nil {
@@ -46,7 +46,7 @@ func main() {
 	}
 	defer ln.Close()
 
-	log.Printf("Proxy server is listening on %d\n", port)
+	log.Printf("HTTP Server is listening on %d\n", port)
 
 	for {
 		conn, err := ln.Accept()
@@ -94,7 +94,7 @@ func handleGET(w *utils.ConnResponseWriter, r *http.Request) {
 	filename_list := strings.Split(filename, ".")
 	if len(filename_list) <= 1 {
 		w.WriteHeader(http.StatusBadRequest)
-		w.WriteText("No specified file type")
+		w.WriteText("Invalid file type")
 		return
 	}
 	valid, contentType := isValidType(filename_list[len(filename_list)-1])
@@ -183,7 +183,7 @@ func handlePOST(w *utils.ConnResponseWriter, r *http.Request) {
 			w.WriteText("Error copying file")
 			return
 		}
-		log.Println("File Uploaded: %+v", h.Header)
+		log.Println("File Uploaded: ", h.Header)
 		// log.Printf("Received %s file content type: %s", h.Header.Get("Content-Type"), h.Filename)
 	}
 	w.WriteHeader(http.StatusOK)

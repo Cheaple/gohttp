@@ -57,7 +57,7 @@ func (w *ConnResponseWriter) WriteHeader(statusCode int) {
 		fmt.Fprintf(w.conn, "HTTP/1.1 %d %s\r\n", statusCode, statusText)
 		w.header.Write(w.conn)
 		fmt.Fprintf(w.conn, "\r\n")
-		log.Printf("HTTP/1.1 %d %s\r\n", statusCode, statusText)
+		log.Printf("Respose: HTTP/1.1 %d %s\r\n", statusCode, statusText)
 	}
 }
 
