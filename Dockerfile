@@ -8,10 +8,10 @@ WORKDIR /app
 COPY . .
 
 # Build the Go application
-RUN go build -o server ./server/server.go
+RUN go build -o ./server/main ./server/server.go
 
 # Expose a port (if your Go program listens on a specific port)
 EXPOSE 8080
 
 # Command to run the Go application
-CMD ["./server", "-p=8080"]
+CMD ["./server/main", "-p=8080"]

@@ -12,8 +12,8 @@ docker run -d -p <port number>:8080 chenyule/http-server
 Build & Run server from source code:
 
 ```shell
-go build -o server ./server/server.go 
-go run server -p=<port number, default as 80>
+go build -o ./server/main ./server/server.go 
+./server/main -p=<port number, default as 80>
 ```
 
 Test GET command:
@@ -41,8 +41,8 @@ for i in {1..10}; do curl -X GET 16.170.214.245:8080/test.txt; done
 Run proxy locally:
 
 ```shell
-go build -o proxy ./proxy/proxy.go 
-go run proxy -p=8999
+go build -o ./proxy/main ./proxy/proxy.go 
+./proxy/main -p=8999
 ```
 
 Test GET command:
