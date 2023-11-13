@@ -98,65 +98,7 @@ func typeMatch(typeList [6]string, target string) (bool, string) {
 	return false, ""
 }
 
-//
-// parse HTTP connection into a http.Request object
-//
-func parseRequest(conn net.Conn) (*http.Request, error) {
-	reader := bufio.NewReader(conn)
 
-	// Read the request line
-	requestLine, err := reader.ReadString('\n')
-	if err != nil {
-		return nil, err
-	}
-
-	parts := strings.Fields(requestLine)
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("invalid request line: %s", requestLine)
-	}
-	reqURL, err := url.Parse(parts[1])
-	if err != nil {
-		return nil, fmt.Errorf("error parsing URL: %v", err)
-	}
-
-	req := &http.Request{
-		Method: parts[0],
-		URL: reqURL,
-		Proto: "HTTP/1.1",
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-	}
-
-	req.Header = make(http.Header)
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil || line == "\r\n" {
-			break
-		}
-
-		headerParts := strings.SplitN(line, ":", 2)
-		if len(headerParts) == 2 {
-			req.Header.Add(strings.TrimSpace(headerParts[0]), strings.TrimSpace(headerParts[1]))
-		}
-	}
-
-	contentLengthStr := req.Header.Get("Content-Length")
-	if contentLengthStr != "" {
-		var contentLength int
-		fmt.Sscanf(contentLengthStr, "%d", &contentLength)
-
-		// Read the request body
-		bodyBytes := make([]byte, contentLength)
-		_, err := io.ReadFull(reader, bodyBytes)
-
-		if err != nil {
-			return nil, fmt.Errorf("error reading request body: %v", err)
-		}
-		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	}
-
-	return req, nil
-}
 
 
 
