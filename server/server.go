@@ -1,20 +1,17 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"../utils"
+	"mymodule/utils"
 )
 
 var (
@@ -24,7 +21,7 @@ var (
 	fileType		= [...]string{"html", "txt", "gif", "jpeg", "jpg", "css"}
 	workspace string
 	maxWorkers		= 10
-	var workerSem	= make(chan struct{}, maxWorkers)
+	workerSem		= make(chan struct{}, maxWorkers)
 )
 
 func main() {
@@ -43,7 +40,7 @@ func main() {
 	address := fmt.Sprintf(":%d", port)
 	ln, err := net.Listen("tcp", address)
 	if err != nil {
-		log.Printf("Fatal error listening on port %s: %s", strport, err.Error())
+		log.Printf("Error listening on port %s: %s", address, err.Error())
 		os.Exit(1)
 	}
 	defer ln.Close()
@@ -67,26 +64,87 @@ func main() {
 func handleRequest(conn net.Conn) {
 	defer conn.Close()
 	workerSem <- struct{}{}
-	defer func() { <-seworkerSemm }()
-	log.Println("Handling a new connection from ", clientConn.RemoteAddr().String())
+	defer func() { <-workerSem }()
+	log.Println("Handling a new connection from ", conn.RemoteAddr().String())
 
-	request, err := parseRequest(conn)
+	request, err := utils.ParseRequest(conn)
 	if err != nil {
 		fmt.Println("Error parsing connection:", err)
 		return
 	}
 
+	responseWriter := utils.NewConnResponseWriter(conn)
+
 	// Check the request method
 	if request.Method == "GET" {
-		handle(request)
+		log.Println("Handing a GET request")
+		handleGET(responseWriter, request)
 	} else if request.Method == "POST" {
-		returnBadRequest(conn)
+		log.Println("Handing a POST request")
+		handlePOST(responseWriter, request)
 	} else {
-		// Return a "501 Not Implemented" response for non-GET requests
-		log.Println("Error forwarding: not implemented method", request.Method)
-		returnNotImplement(clientConn)
+		responseWriter.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+// Handle GET request
+func handleGET(w *utils.ConnResponseWriter, r *http.Request) {
+	
+}
+
+// Handle POST request
+func handlePOST(w *utils.ConnResponseWriter, r *http.Request) {
+	// Check if the request method is POST
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+
+	// Check if the content type is "multipart/form-data"
+	contentType := r.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "multipart/form-data") {
+		w.WriteHeader(http.StatusUnsupportedMediaType)
+		w.WriteText(fmt.Sprintf("Unsupported Content-Type: %s", contentType))
+		return
+	}
+
+	// Parse multipart data
+	err := r.ParseMultipartForm(16 << 20)
+	if err != nil {
+		log.Println("Error parsing form:", err)
+		return
+	}
+	for _, h := range r.MultipartForm.File["file"] {
+		// Read next file of multipart data
+		file, _ := h.Open()
+		if err != nil {
+			log.Println("Error retriving file in MultipartForm:", err)
+			return
+		}
+		defer file.Close()
+		log.Println("File Uploaded: %+v", h.Header)
+
+		// Create a target file locally 
+		dst, err := os.Create(workspace + "/" + h.Filename)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteText("Error creating destination file")
+			return
+		}
+		defer dst.Close()
+	
+		// Store uploaded data
+		_, err = io.Copy(dst, file)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteText("Error copying file")
+			return
+		}
+		log.Printf("Received %s file content type: %s", h.Header.Get("Content-Type"), h.Filename)
+	}
+	
+	w.WriteHeader(http.StatusOK)
+	w.WriteText("Files uploaded successfully")
 }
 
 func typeMatch(typeList [6]string, target string) (bool, string) {
@@ -96,111 +154,6 @@ func typeMatch(typeList [6]string, target string) (bool, string) {
 		}
 	}
 	return false, ""
-}
-
-
-
-
-
-func handlePOST(w http.ResponseWriter, r *http.Request) {
-	// Check if the request method is POST
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	
-	// Check if the content type is "image"
-	contentType := r.Header.Get("Content-Type")
-	if contentType != "image/jpeg" {
-		// http.Error(w, "Unsupported media type", http.StatusUnsupportedMediaType)
-		return
-	}
-
-	file, err := os.Create("received_image.jpg")
-	if err != nil {
-		// http.Error(w, "Error creating file", http.StatusInternalServerError)
-		return
-	}
-	defer file.Close()
-
-	// Read the request body and write it to the local file
-	_, err = io.Copy(file, r.Body)
-	if err != nil {
-		// http.Error(w, "Error reading request body", http.StatusInternalServerError)
-		return
-	}
-
-	log.Println("Received image with content type:", contentType)
-	log.Println("Image size:", len(file), "bytes")
-
-	// You can handle the image data here, such as saving it to a file or processing it.
-
-	// // Send a response
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Image received successfully"))
-}
-
-func returnNotImplement(conn net.Conn) {
-	var buf string
-
-	buf = "HTTP/1.1 501 Method Not Implemented\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "Content-Type: text/html; charset=utf-8\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "Connection: close\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "<HTML><HEAD><TITLE>Method Not Implemented\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "</TITLE></HEAD>\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "<BODY><P>HTTP request method not supported.\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "</BODY></HTML>\r\n"
-	_, _ = conn.Write([]byte(buf))
-}
-
-func returnNotFound(conn net.Conn) {
-	var buf string
-
-	buf = "HTTP/1.1 404 Not Found\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "Content-Type: text/html; charset=utf-8\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "Connection: close\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "<HTML><HEAD><TITLE>404 Not Found\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "</TITLE></HEAD>\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "<BODY><P>404 not Found.\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "</BODY></HTML>\r\n"
-	_, _ = conn.Write([]byte(buf))
-}
-
-func returnBadRequest(conn net.Conn) {
-	var buf string
-
-	buf = "HTTP/1.1 400 Bad Request\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "Content-Type: text/html; charset=utf-8\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "Connection: close\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "<HTML><HEAD><TITLE>400 Bad Request\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "</TITLE></HEAD>\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "<BODY><P>400 Bad Request.\r\n"
-	_, _ = conn.Write([]byte(buf))
-	buf = "</BODY></HTML>\r\n"
-	_, _ = conn.Write([]byte(buf))
 }
 
 
