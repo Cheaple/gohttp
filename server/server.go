@@ -83,8 +83,7 @@ func handleRequest(conn net.Conn) {
 		handlePOST(responseWriter, request)
 	} else {
 		log.Printf("Handing a %s request, not implemented!", request.Method)
-		responseWriter.WriteHeader(http.StatusNotImplemented)
-		responseWriter.WriteText("Method Not Implemented")
+		returnNotImplemented(responseWriter, fmt.Sprintf("Method Not Implemented: %s", request.Method))
 	}
 }
 
@@ -93,15 +92,14 @@ func handleGET(w *utils.ConnResponseWriter, r *http.Request) {
 	filename := path.Base(r.URL.String())
 	filename_list := strings.Split(filename, ".")
 	if len(filename_list) <= 1 {
-		w.WriteHeader(http.StatusBadRequest)
-		w.WriteText("Invalid file type")
+		log.Println("Error opening file: invalid file type")
+		returnBadRequest(w, "Invalid file type")
 		return
 	}
 	valid, contentType := isValidType(filename_list[len(filename_list)-1])
 	if !valid {
 		log.Println("Error opening file: invalid file type")
-		w.WriteHeader(http.StatusBadRequest)
-		w.WriteText("Invalid file type")
+		returnBadRequest(w, "Invalid file type")
 		return
 	}
 
@@ -110,8 +108,7 @@ func handleGET(w *utils.ConnResponseWriter, r *http.Request) {
 	file, err := os.Open(targetPath)
 	if err != nil {
 		log.Println("Error opening file:", err)
-		w.WriteHeader(http.StatusNotFound)
-		w.WriteText("File not found")
+		returnNotFound(w, fmt.Sprintf("File not found: %s", filename))
 		return
 	}
 	defer file.Close()
@@ -200,5 +197,24 @@ func isValidType(target string) (bool, string) {
 	}
 	return false, ""
 }
+
+func returnBadRequest(w *utils.ConnResponseWriter, text string) {
+	w.WriteHeader(http.StatusBadRequest)
+	w.WriteText("<!DOCTYPE html>\r\n<html>\r\n\t<head>\r\n\t\t<title>400 Bad Request</title>\r\n\t</head>")
+	w.WriteText(fmt.Sprintf("\t<body>\r\n\t\t<p>%s</p>\r\n\t</body>\r\n</html>", text))
+}
+
+func returnNotImplemented(w *utils.ConnResponseWriter, text string) {
+	w.WriteHeader(http.StatusNotImplemented)
+	w.WriteText("<!DOCTYPE html>\r\n<html>\r\n\t<head>\r\n\t\t<title>501 Method Not Implemented</title>\r\n\t</head>")
+	w.WriteText(fmt.Sprintf("\t<body>\r\n\t\t<p>%s</p>\r\n\t</body>\r\n</html>", text))
+}
+
+func returnNotFound(w *utils.ConnResponseWriter, text string) {
+	w.WriteHeader(http.StatusNotFound)
+	w.WriteText("<!DOCTYPE html>\r\n<html>\r\n\t<head>\r\n\t\t<title>404 Not Found</title>\r\n\t</head>")
+	w.WriteText(fmt.Sprintf("\t<body>\r\n\t\t<p>%s</p>\r\n\t</body>\r\n</html>", text))
+}
+
 
 

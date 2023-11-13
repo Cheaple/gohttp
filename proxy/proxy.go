@@ -83,7 +83,7 @@ func httpClientHandler(clientConn net.Conn) {
 		// Return a "501 Not Implemented" response for non-GET requests
 		log.Printf("Handing a %s request, not implemented!", request.Method)
 		responseWriter.WriteHeader(http.StatusNotImplemented)
-		responseWriter.WriteText("Method Not Implemented")
+		responseWriter.WriteText("Proxy Method Not Implemented")
 		return
 	}
 

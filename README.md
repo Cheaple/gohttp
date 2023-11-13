@@ -14,6 +14,8 @@ Build & Run server from source code:
 ```shell
 go build -o ./server/main ./server/server.go 
 ./server/main -p=<port number, default as 80>
+# or 
+go run ./proxy/proxy.go
 ```
 
 Test GET command:
@@ -43,6 +45,8 @@ Run proxy locally:
 ```shell
 go build -o ./proxy/main ./proxy/proxy.go 
 ./proxy/main -p=8999
+# or
+go run ./proxy/proxy.go 
 ```
 
 Test GET command:
