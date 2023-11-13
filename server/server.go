@@ -53,7 +53,7 @@ func main() {
 		if err != nil {
 			continue
 		}
-		log.Println("Receiving a new request from", conn.RemoteAddr().String())
+		// log.Println("Receiving a new request from", conn.RemoteAddr().String())
 		go handleRequest(conn)
 	}
 }
@@ -76,10 +76,10 @@ func handleRequest(conn net.Conn) {
 
 	// Check the request method
 	if request.Method == http.MethodGet {
-		log.Println("Handing a GET request")
+		log.Println("Handing a GET request:", request.URL.String())
 		handleGET(responseWriter, request)
 	} else if request.Method == http.MethodPost {
-		log.Println("Handing a POST request")
+		log.Println("Handing a POST request:", request.URL.String())
 		handlePOST(responseWriter, request)
 	} else {
 		log.Printf("Handing a %s request, not implemented!", request.Method)
@@ -110,7 +110,7 @@ func handleGET(w *utils.ConnResponseWriter, r *http.Request) {
 	file, err := os.Open(targetPath)
 	if err != nil {
 		log.Println("Error opening file:", err)
-		w.WriteHeader(http.StatusFound)
+		w.WriteHeader(http.StatusNotFound)
 		w.WriteText("File not found")
 		return
 	}
